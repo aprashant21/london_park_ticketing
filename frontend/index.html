@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>London Community Park - Christmas Events</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo">🎄 London Community Park</a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="events.html">Events</a></li>
+            <li><a href="register.html">Register</a></li>
+            <li><a href="login.html">Login</a></li>
+            <li><a href="admin-login.html">Admin</a></li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="hero">
+        <h1>🎅 Welcome to London Community Park Christmas Events! 🎄</h1>
+        <p>Experience the magic of Christmas with our spectacular events this December!</p>
+        <p>Book your tickets online now and avoid the crowds at the gate.</p>
+        <a href="register.html" class="btn btn-secondary">Get Started</a>
+        <a href="events.html" class="btn btn-primary">View Events</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Why Book Online?</h2>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-top: 1rem;">
+            <div style="text-align: center; padding: 1.5rem;">
+                <div style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;">🎫</div>
+                <h3>Guaranteed Entry</h3>
+                <p>Secure your spot and avoid sold-out disappointment</p>
+            </div>
+            <div style="text-align: center; padding: 1.5rem;">
+                <div style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;">🚀</div>
+                <h3>Skip the Queue</h3>
+                <p>Fast-track entry with pre-booked tickets</p>
+            </div>
+            <div style="text-align: center; padding: 1.5rem;">
+                <div style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;">👨‍👩‍👧‍👦</div>
+                <h3>Family Friendly</h3>
+                <p>Safe and organized events for all ages</p>
+            </div>
+            <div style="text-align: center; padding: 1.5rem;">
+                <div style="font-size: 3rem; color: var(--primary-color); margin-bottom: 1rem;">📱</div>
+                <h3>Easy Booking</h3>
+                <p>Simple online booking process</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Featured Events</h2>
+        </div>
+        <div id="featured-events" class="events-grid">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>Important Information</h2>
+        </div>
+        <ul style="list-style: none; padding-left: 0;">
+            <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                <strong>✓ Online Booking Required:</strong> All tickets must be purchased online in advance
+            </li>
+            <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                <strong>✓ Adult Supervision:</strong> Most events require at least one adult per booking
+            </li>
+            <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                <strong>✓ Photo ID Required:</strong> Adults must upload a photo for events with children
+            </li>
+            <li style="padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                <strong>✓ Ticket Limit:</strong> Maximum 8 tickets per booking for most events
+            </li>
+            <li style="padding: 0.75rem 0;">
+                <strong>✓ Seating Options:</strong> Choose between seats with tables or without tables
+            </li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    // API Base URL - Update this to your backend URL
+    const API_URL = 'http://localhost/london-park-ticketing/backend/api';
+
+    // Load featured events
+    async function loadFeaturedEvents() {
+        try {
+            const response = await fetch(`${API_URL}/events.php`);
+            const data = await response.json();
+
+            const container = document.getElementById('featured-events');
+
+            if (data.success && data.events.length > 0) {
+                // Show only first 3 events
+                const featuredEvents = data.events.slice(0, 3);
+
+                container.innerHTML = featuredEvents.map(event => `
+                        <div class="event-card">
+                            <div class="event-header">
+                                <h3>${event.event_name}</h3>
+                                <p style="font-size: 0.9rem; opacity: 0.9;">${event.venue}</p>
+                            </div>
+                            <div class="event-body">
+                                <div class="event-detail">
+                                    <span>📅</span>
+                                    <span>${formatDate(event.event_date)}</span>
+                                </div>
+                                <div class="event-detail">
+                                    <span>🕒</span>
+                                    <span>${formatTime(event.event_time)}</span>
+                                </div>
+                                <div class="event-detail">
+                                    <span>🎫</span>
+                                    <span>${event.available_tickets} tickets available</span>
+                                </div>
+                                <p style="margin-top: 1rem; color: #666;">${event.description.substring(0, 100)}...</p>
+                            </div>
+                            <div class="event-footer">
+                                <div class="price-info">
+                                    From £${event.without_table_adult_price}
+                                </div>
+                                <a href="events.html" class="btn btn-primary" style="padding: 0.5rem 1rem;">View Details</a>
+                            </div>
+                        </div>
+                    `).join('');
+            } else {
+                container.innerHTML = '<p class="text-center">No events available at the moment.</p>';
+            }
+        } catch (error) {
+            console.error('Error loading events:', error);
+            document.getElementById('featured-events').innerHTML =
+                '<p class="text-center" style="color: var(--error);">Failed to load events. Please try again later.</p>';
+        }
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-GB', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    function formatTime(timeStr) {
+        const [hours, minutes] = timeStr.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${minutes} ${ampm}`;
+    }
+
+    // Load events when page loads
+    loadFeaturedEvents();
+</script>
+</body>
+</html>

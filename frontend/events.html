@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Christmas Events - London Community Park</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo">🎄 London Community Park</a>
+        <ul class="nav-links" id="navLinks">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="events.html">Events</a></li>
+            <li id="authLinks"></li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <h2>Christmas Events December 2025</h2>
+            <p>Book your tickets now for our spectacular Christmas events!</p>
+        </div>
+
+        <div id="events-container" class="events-grid">
+            <div class="spinner"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Booking Modal -->
+<div id="bookingModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Book Tickets</h2>
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+        </div>
+
+        <div id="modalContent"></div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost/london-park-ticketing/backend/api';
+    let currentEvent = null;
+
+    // Check authentication
+    function checkAuth() {
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user'));
+        const authLinks = document.getElementById('authLinks');
+
+        if (token && user) {
+            authLinks.innerHTML = `
+                    <li><span style="color: white;">Welcome, ${user.full_name}</span></li>
+                    <li><a href="#" onclick="logout()">Logout</a></li>
+                `;
+        } else {
+            authLinks.innerHTML = `
+                    <li><a href="register.html">Register</a></li>
+                    <li><a href="login.html">Login</a></li>
+                `;
+        }
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = 'index.html';
+    }
+
+    // Load all events
+    async function loadEvents() {
+        try {
+            const response = await fetch(`${API_URL}/events.php`);
+            const data = await response.json();
+
+            const container = document.getElementById('events-container');
+
+            if (data.success && data.events.length > 0) {
+                container.innerHTML = data.events.map(event => `
+                        <div class="event-card">
+                            <div class="event-header">
+                                <h3>${event.event_name}</h3>
+                                <p style="font-size: 0.9rem; opacity: 0.9;">📍 ${event.venue}</p>
+                            </div>
+                            <div class="event-body">
+                                <div class="event-detail">
+                                    <span>📅</span>
+                                    <span>${formatDate(event.event_date)}</span>
+                                </div>
+                                <div class="event-detail">
+                                    <span>🕒</span>
+                                    <span>${formatTime(event.event_time)}</span>
+                                </div>
+                                <div class="event-detail">
+                                    <span>🎫</span>
+                                    <span><strong>${event.available_tickets}</strong> tickets available (${event.total_capacity} capacity)</span>
+                                </div>
+                                ${event.requires_adult ? '<div class="event-detail" style="color: var(--warning);"><span>⚠️</span><span>Adult required</span></div>' : ''}
+                                <p style="margin-top: 1rem; color: #666; font-size: 0.95rem;">${event.description}</p>
+
+                                <div style="margin-top: 1rem; padding: 1rem; background: var(--light-bg); border-radius: 5px;">
+                                    <p style="font-weight: 600; margin-bottom: 0.5rem;">Pricing:</p>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
+                                        <div><strong>With Table:</strong></div>
+                                        <div>Adult: £${event.with_table_adult_price} | Child: £${event.with_table_child_price}</div>
+                                        <div><strong>Without Table:</strong></div>
+                                        <div>Adult: £${event.without_table_adult_price} | Child: £${event.without_table_child_price}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="event-footer">
+                                <div class="price-info">
+                                    From £${event.without_table_adult_price}
+                                </div>
+                                <button class="btn btn-primary" style="padding: 0.5rem 1rem;" onclick="openBookingModal(${event.id})">
+                                    Book Now
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+            } else {
+                container.innerHTML = '<p class="text-center">No events available at the moment.</p>';
+            }
+        } catch (error) {
+            console.error('Error loading events:', error);
+            document.getElementById('events-container').innerHTML =
+                '<p class="text-center" style="color: var(--error);">Failed to load events. Please try again later.</p>';
+        }
+    }
+
+    async function openBookingModal(eventId) {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            alert('Please login to book tickets');
+            window.location.href = 'login.html';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/events.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ event_id: eventId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                currentEvent = data.event;
+                showBookingForm();
+                document.getElementById('bookingModal').classList.add('active');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to load event details');
+        }
+    }
+
+    function showBookingForm() {
+        const modalContent = document.getElementById('modalContent');
+        modalContent.innerHTML = `
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--light-bg); border-radius: 5px;">
+                    <h3 style="color: var(--primary-color); margin-bottom: 0.5rem;">${currentEvent.event_name}</h3>
+                    <p><strong>Date:</strong> ${formatDate(currentEvent.event_date)}</p>
+                    <p><strong>Time:</strong> ${formatTime(currentEvent.event_time)}</p>
+                    <p><strong>Available Tickets:</strong> ${currentEvent.available_tickets}</p>
+                </div>
+
+                <div id="bookingAlert"></div>
+
+                <form id="bookingForm">
+                    <div class="form-group">
+                        <label>Seat Type *</label>
+                        <select id="seat_type" class="form-control" onchange="updatePrice()">
+                            <option value="without_table">Without Table - Adult: £${currentEvent.without_table_adult_price}, Child: £${currentEvent.without_table_child_price}</option>
+                            <option value="with_table">With Table - Adult: £${currentEvent.with_table_adult_price}, Child: £${currentEvent.with_table_child_price}</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Number of Adults *</label>
+                            <input type="number" id="num_adults" class="form-control" min="${currentEvent.requires_adult ? 1 : 0}" max="8" value="1" onchange="updatePrice()" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Number of Children</label>
+                            <input type="number" id="num_children" class="form-control" min="0" max="7" value="0" onchange="updatePrice()">
+                        </div>
+                    </div>
+
+                    ${currentEvent.requires_adult ? '<p style="color: var(--warning); font-size: 0.9rem; margin: 1rem 0;">⚠️ At least one adult ticket is required. Adult photo must be on file.</p>' : ''}
+
+                    <div style="padding: 1rem; background: var(--primary-color); color: white; border-radius: 5px; text-align: center; margin: 1rem 0;">
+                        <h3>Total Price: £<span id="totalPrice">0.00</span></h3>
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-block" id="bookBtn">
+                        Confirm Booking
+                    </button>
+                </form>
+            `;
+
+        updatePrice();
+
+        document.getElementById('bookingForm').addEventListener('submit', handleBooking);
+    }
+
+    function updatePrice() {
+        const seatType = document.getElementById('seat_type').value;
+        const numAdults = parseInt(document.getElementById('num_adults').value) || 0;
+        const numChildren = parseInt(document.getElementById('num_children').value) || 0;
+
+        const adultPrice = seatType === 'with_table' ?
+            parseFloat(currentEvent.with_table_adult_price) :
+            parseFloat(currentEvent.without_table_adult_price);
+
+        const childPrice = seatType === 'with_table' ?
+            parseFloat(currentEvent.with_table_child_price) :
+            parseFloat(currentEvent.without_table_child_price);
+
+        const total = (numAdults * adultPrice) + (numChildren * childPrice);
+        document.getElementById('totalPrice').textContent = total.toFixed(2);
+    }
+
+    async function handleBooking(e) {
+        e.preventDefault();
+
+        const bookBtn = document.getElementById('bookBtn');
+        bookBtn.disabled = true;
+        bookBtn.textContent = 'Processing...';
+
+        const bookingData = {
+            event_id: currentEvent.id,
+            num_adults: parseInt(document.getElementById('num_adults').value),
+            num_children: parseInt(document.getElementById('num_children').value),
+            seat_type: document.getElementById('seat_type').value
+        };
+
+        const token = localStorage.getItem('token');
+
+        try {
+            const response = await fetch(`${API_URL}/booking.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(bookingData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showBookingSuccess(data.booking);
+            } else {
+                showBookingAlert(data.message, 'error');
+                bookBtn.disabled = false;
+                bookBtn.textContent = 'Confirm Booking';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showBookingAlert('An error occurred. Please try again.', 'error');
+            bookBtn.disabled = false;
+            bookBtn.textContent = 'Confirm Booking';
+        }
+    }
+
+    function showBookingSuccess(booking) {
+        const modalContent = document.getElementById('modalContent');
+        modalContent.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <div style="font-size: 4rem; color: var(--success); margin-bottom: 1rem;">✓</div>
+                    <h2 style="color: var(--success); margin-bottom: 1rem;">Booking Confirmed!</h2>
+
+                    <div style="background: var(--light-bg); padding: 1.5rem; border-radius: 5px; text-align: left; margin: 1.5rem 0;">
+                        <p><strong>Booking Reference:</strong> <span style="color: var(--primary-color); font-size: 1.2rem;">${booking.booking_reference}</span></p>
+                        <p><strong>Event:</strong> ${booking.event_name}</p>
+                        <p><strong>Date:</strong> ${formatDate(booking.event_date)}</p>
+                        <p><strong>Time:</strong> ${formatTime(booking.event_time)}</p>
+                        <p><strong>Tickets:</strong> ${booking.num_adults} Adult(s), ${booking.num_children} Child(ren)</p>
+                        <p><strong>Seat Type:</strong> ${booking.seat_type === 'with_table' ? 'With Table' : 'Without Table'}</p>
+                        <p><strong>Total Paid:</strong> <span style="color: var(--success); font-size: 1.2rem; font-weight: bold;">£${booking.total_price}</span></p>
+                    </div>
+
+                    <p style="color: #666; margin: 1rem 0;">Please save your booking reference. Show it at the entrance on the event day.</p>
+
+                    <button class="btn btn-primary" onclick="closeModalAndReload()">Close</button>
+                </div>
+            `;
+    }
+
+    function showBookingAlert(message, type) {
+        const alertContainer = document.getElementById('bookingAlert');
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+        alertContainer.innerHTML = `
+                <div class="alert ${alertClass}">
+                    ${message}
+                </div>
+            `;
+    }
+
+    function closeModal() {
+        document.getElementById('bookingModal').classList.remove('active');
+    }
+
+    function closeModalAndReload() {
+        closeModal();
+        loadEvents();
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-GB', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    function formatTime(timeStr) {
+        const [hours, minutes] = timeStr.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${minutes} ${ampm}`;
+    }
+
+    // Initialize
+    checkAuth();
+    loadEvents();
+</script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - London Community Park</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="logo">🎄 London Community Park</a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="events.html">Events</a></li>
+            <li><a href="register.html">Register</a></li>
+            <li><a href="login.html">Login</a></li>
+            <li><a href="admin-login.html">Admin</a></li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="card" style="max-width: 500px; margin: 2rem auto;">
+        <div class="card-header">
+            <h2>User Login</h2>
+            <p>Login to book your Christmas event tickets</p>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username or Email</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
+                Login
+            </button>
+        </form>
+
+        <div class="text-center mt-3">
+            <p>Don't have an account? <a href="register.html" style="color: var(--primary-color);">Register here</a></p>
+            <p>Admin user? <a href="admin-login.html" style="color: var(--primary-color);">Admin Login</a></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost/london-park-ticketing/backend/api';
+
+    // Check if already logged in
+    if (localStorage.getItem('token')) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user.role === 'user') {
+            window.location.href = 'events.html';
+        }
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Logging in...';
+
+        const formData = {
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value
+        };
+
+        try {
+            const response = await fetch(`${API_URL}/login.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Check if user role
+                if (data.user.role !== 'user') {
+                    showAlert('Please use admin login for admin accounts', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Login';
+                    return;
+                }
+
+                // Save token and user data
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+
+                showAlert('Login successful! Redirecting...', 'success');
+
+                setTimeout(() => {
+                    window.location.href = 'events.html';
+                }, 1000);
+            } else {
+                showAlert(data.message, 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Login';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('An error occurred. Please try again.', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Login';
+        }
+    });
+
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alert-container');
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+        alertContainer.innerHTML = `
+                <div class="alert ${alertClass}">
+                    ${message}
+                </div>
+            `;
+
+        setTimeout(() => {
+            alertContainer.innerHTML = '';
+        }, 5000);
+    }
+</script>
+</body>
+</html>

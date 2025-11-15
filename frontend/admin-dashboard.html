@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - London Community Park</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="admin-dashboard.html" class="logo">🔐 Admin Dashboard</a>
+        <ul class="nav-links">
+            <li><span style="color: white;" id="adminName"></span></li>
+            <li><a href="#" onclick="logout()">Logout</a></li>
+        </ul>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <div class="flex justify-between align-center">
+                <h2>User Management System</h2>
+                <button class="btn btn-success" onclick="openCreateModal()">+ Create New User</button>
+            </div>
+        </div>
+
+        <div id="alert-container"></div>
+
+        <div id="users-container">
+            <div class="spinner"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit User Modal -->
+<div id="userModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">Create User</h2>
+            <span class="close-modal" onclick="closeUserModal()">&times;</span>
+        </div>
+
+        <div id="modal-alert"></div>
+
+        <form id="userForm">
+            <input type="hidden" id="user_id">
+
+            <div class="form-group">
+                <label for="modal_username">Username *</label>
+                <input type="text" id="modal_username" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="modal_email">Email *</label>
+                <input type="email" id="modal_email" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="modal_password">Password <span id="passwordHint">(leave blank to keep current)</span></label>
+                <input type="password" id="modal_password" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="modal_full_name">Full Name *</label>
+                <input type="text" id="modal_full_name" class="form-control" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modal_phone">Phone *</label>
+                    <input type="tel" id="modal_phone" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="modal_role">Role *</label>
+                    <select id="modal_role" class="form-control" required>
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="modal_address">Address</label>
+                <textarea id="modal_address" class="form-control" rows="2"></textarea>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-success" style="flex: 1;" id="saveBtn">Save</button>
+                <button type="button" class="btn btn-secondary" style="flex: 1;" onclick="closeUserModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h2>Confirm Delete</h2>
+            <span class="close-modal" onclick="closeDeleteModal()">&times;</span>
+        </div>
+
+        <p>Are you sure you want to delete this user? This action cannot be undone.</p>
+        <p><strong id="deleteUserName"></strong></p>
+
+        <div class="flex gap-2 mt-3">
+            <button class="btn btn-danger" style="flex: 1;" onclick="confirmDelete()">Delete</button>
+            <button class="btn btn-secondary" style="flex: 1;" onclick="closeDeleteModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'http://localhost/london-park-ticketing/backend/api';
+    let currentUserId = null;
+    let isEditMode = false;
+
+    // Check admin authentication
+    function checkAdminAuth() {
+        const token = localStorage.getItem('token');
+        const user = JSON.parse(localStorage.getItem('user'));
+
+        if (!token || !user || user.role !== 'admin') {
+            window.location.href = 'admin-login.html';
+            return false;
+        }
+
+        document.getElementById('adminName').textContent = `Welcome, ${user.full_name}`;
+        return true;
+    }
+
+    function logout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = 'admin-login.html';
+    }
+
+    // Load all users
+    async function loadUsers() {
+        const token = localStorage.getItem('token');
+
+        try {
+            const response = await fetch(`${API_URL}/admin/users.php`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                displayUsers(data.users);
+            } else {
+                showAlert(data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('Failed to load users', 'error');
+        }
+    }
+
+    function displayUsers(users) {
+        const container = document.getElementById('users-container');
+
+        if (users.length === 0) {
+            container.innerHTML = '<p class="text-center">No users found</p>';
+            return;
+        }
+
+        container.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Role</th>
+                            <th>Bookings</th>
+                            <th>Total Spent</th>
+                            <th>Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(user => `
+                            <tr>
+                                <td>${user.id}</td>
+                                <td>${user.username}</td>
+                                <td>${user.full_name}</td>
+                                <td>${user.email}</td>
+                                <td>${user.phone}</td>
+                                <td><span class="badge ${user.role === 'admin' ? 'badge-danger' : 'badge-success'}">${user.role.toUpperCase()}</span></td>
+                                <td>${user.total_bookings}</td>
+                                <td>£${parseFloat(user.total_spent).toFixed(2)}</td>
+                                <td>${formatDate(user.created_at)}</td>
+                                <td>
+                                    <button class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-right: 0.5rem;" onclick='openEditModal(${JSON.stringify(user)})'>Edit</button>
+                                    <button class="btn btn-danger" style="padding: 0.25rem 0.75rem;" onclick="openDeleteModal(${user.id}, '${user.username}')">Delete</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+    }
+
+    // Create User Modal
+    function openCreateModal() {
+        isEditMode = false;
+        document.getElementById('modalTitle').textContent = 'Create New User';
+        document.getElementById('passwordHint').style.display = 'none';
+        document.getElementById('userForm').reset();
+        document.getElementById('user_id').value = '';
+        document.getElementById('modal_password').required = true;
+        document.getElementById('userModal').classList.add('active');
+    }
+
+    // Edit User Modal
+    function openEditModal(user) {
+        isEditMode = true;
+        document.getElementById('modalTitle').textContent = 'Edit User';
+        document.getElementById('passwordHint').style.display = 'inline';
+        document.getElementById('user_id').value = user.id;
+        document.getElementById('modal_username').value = user.username;
+        document.getElementById('modal_email').value = user.email;
+        document.getElementById('modal_password').value = '';
+        document.getElementById('modal_password').required = false;
+        document.getElementById('modal_full_name').value = user.full_name;
+        document.getElementById('modal_phone').value = user.phone;
+        document.getElementById('modal_address').value = user.address || '';
+        document.getElementById('modal_role').value = user.role;
+        document.getElementById('userModal').classList.add('active');
+    }
+
+    function closeUserModal() {
+        document.getElementById('userModal').classList.remove('active');
+        document.getElementById('modal-alert').innerHTML = '';
+    }
+
+    // Save User (Create or Update)
+    document.getElementById('userForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const userId = document.getElementById('user_id').value;
+        const isUpdate = userId !== '';
+
+        const saveBtn = document.getElementById('saveBtn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
+        const userData = {
+            username: document.getElementById('modal_username').value,
+            email: document.getElementById('modal_email').value,
+            full_name: document.getElementById('modal_full_name').value,
+            phone: document.getElementById('modal_phone').value,
+            address: document.getElementById('modal_address').value,
+            role: document.getElementById('modal_role').value
+        };
+
+        const password = document.getElementById('modal_password').value;
+        if (password) {
+            userData.password = password;
+        }
+
+        if (isUpdate) {
+            userData.id = parseInt(userId);
+        }
+
+        const token = localStorage.getItem('token');
+
+        try {
+            const response = await fetch(`${API_URL}/admin/users.php`, {
+                method: isUpdate ? 'PUT' : 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(userData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showAlert(data.message, 'success');
+                closeUserModal();
+                loadUsers();
+            } else {
+                showModalAlert(data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showModalAlert('An error occurred', 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save';
+        }
+    });
+
+    // Delete User
+    function openDeleteModal(userId, username) {
+        currentUserId = userId;
+        document.getElementById('deleteUserName').textContent = username;
+        document.getElementById('deleteModal').classList.add('active');
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').classList.remove('active');
+        currentUserId = null;
+    }
+
+    async function confirmDelete() {
+        const token = localStorage.getItem('token');
+
+        try {
+            const response = await fetch(`${API_URL}/admin/users.php`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id: currentUserId })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showAlert(data.message, 'success');
+                closeDeleteModal();
+                loadUsers();
+            } else {
+                showAlert(data.message, 'error');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showAlert('An error occurred', 'error');
+        }
+    }
+
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alert-container');
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+        alertContainer.innerHTML = `
+                <div class="alert ${alertClass}">
+                    ${message}
+                </div>
+            `;
+
+        setTimeout(() => {
+            alertContainer.innerHTML = '';
+        }, 5000);
+    }
+
+    function showModalAlert(message, type) {
+        const alertContainer = document.getElementById('modal-alert');
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-error';
+
+        alertContainer.innerHTML = `
+                <div class="alert ${alertClass}">
+                    ${message}
+                </div>
+            `;
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-GB');
+    }
+
+    // Initialize
+    if (checkAdminAuth()) {
+        loadUsers();
+    }
+</script>
+</body>
+</html>
